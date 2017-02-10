@@ -117,7 +117,48 @@ namespace Flexlive.CQP.Framework
             RunningFlag = true;
             Thread thread = new Thread(new ThreadStart(this.ReceiveMessage));
             thread.IsBackground = true;
-            thread.Start();  
+            thread.Start();
+
+
+            HttpListener httpListener = new HttpListener();
+
+            httpListener.AuthenticationSchemes = AuthenticationSchemes.Anonymous;
+            httpListener.Prefixes.Add("http://localhost:3147/");
+            httpListener.Start();
+            new Thread(new ThreadStart(delegate
+            {
+                while (true)
+                {
+                    HttpListenerContext httpListenerContext = httpListener.GetContext();
+                    httpListenerContext.Response.StatusCode = 200;
+                    String uri = httpListenerContext.Request.Url.LocalPath;
+                    if(!uri.Equals("/ssAPI/jabber.ashx"))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        long groupId = long.Parse(httpListenerContext.Request.QueryString["groupId"]);
+                        String msg = httpListenerContext.Request.QueryString["msg"];
+                        if (msg == null || msg.Equals(""))
+                        {
+                            continue;
+                        }
+                        CQ.SendGroupMessage(groupId, msg);
+                        using (StreamWriter writer = new StreamWriter(httpListenerContext.Response.OutputStream))
+                        {
+                            writer.WriteLine("OK");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        using (StreamWriter writer = new StreamWriter(httpListenerContext.Response.OutputStream))
+                        {
+                            writer.WriteLine("ERROR:"+ex.Message);
+                        }
+                    }
+                }
+            })).Start();
         }
 
         /// <summary>
